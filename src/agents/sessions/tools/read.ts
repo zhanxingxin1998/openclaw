@@ -57,6 +57,8 @@ const COMPACT_RESOURCE_FILE_NAMES = new Set(["AGENTS.md", "AGENTS.MD", "CLAUDE.m
 export interface ReadOperations {
   /** Resolve a user-supplied path for this read backend. */
   resolvePath?: (filePath: string, cwd: string) => string | Promise<string>;
+  /** Decode text with the host's encoding policy. Custom backends default to UTF-8. */
+  textEncoding?: "host";
   /** Read file contents as a Buffer */
   readFile: (absolutePath: string) => Promise<Buffer>;
   /** Check if file is readable (throw if not) */
@@ -67,6 +69,7 @@ export interface ReadOperations {
 
 const defaultReadOperations: ReadOperations = {
   resolvePath: resolveLocalReadPath,
+  textEncoding: "host",
   readFile: (path) => fsReadFile(path),
   access: (path) => fsAccess(path, constants.R_OK),
   detectImageMimeType: detectSupportedImageMimeTypeFromFile,
@@ -255,7 +258,6 @@ export function createReadToolDefinition(
 ): ToolDefinition<typeof readSchema, ReadToolDetails | undefined> {
   const autoResizeImages = options?.autoResizeImages ?? true;
   const ops = options?.operations ?? defaultReadOperations;
-  const usesDefaultReadOperations = options?.operations === undefined;
   return {
     name: "read",
     label: "read",
@@ -341,11 +343,10 @@ export function createReadToolDefinition(
             } else {
               // Read text content.
               const buffer = await ops.readFile(absolutePath);
-              // Custom backends own their source encoding; the host Windows code page only
-              // applies to bytes read from the local filesystem.
-              const textContent = usesDefaultReadOperations
-                ? decodeWindowsOutputBuffer({ buffer })
-                : buffer.toString("utf8");
+              const textContent =
+                ops.textEncoding === "host"
+                  ? decodeWindowsOutputBuffer({ buffer })
+                  : buffer.toString("utf8");
               const allLines = textContent.split("\n");
               const totalFileLines = allLines.length;
               // Apply offset if specified. Convert from 1-indexed input to 0-indexed array access.

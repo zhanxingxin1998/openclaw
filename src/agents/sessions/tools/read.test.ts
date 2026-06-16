@@ -155,4 +155,27 @@ describe("read tool", () => {
     expect(decodeWindowsOutputBufferMock).not.toHaveBeenCalled();
     expect(textContent(result)).toBe(bytes.toString("utf8"));
   });
+
+  it("uses host decoding when an injected backend declares host bytes", async () => {
+    const bytes = Buffer.from([0xc4, 0xe3, 0xba, 0xc3]);
+    decodeWindowsOutputBufferMock.mockReturnValueOnce("decoded host text");
+    const tool = createReadToolDefinition("/workspace", {
+      operations: {
+        textEncoding: "host",
+        access: async () => {},
+        detectImageMimeType: async () => null,
+        readFile: async () => bytes,
+      },
+    });
+    const result = await tool.execute(
+      "call-1",
+      { path: "legacy.txt" },
+      undefined,
+      undefined,
+      {} as never,
+    );
+
+    expect(decodeWindowsOutputBufferMock).toHaveBeenCalledWith({ buffer: bytes });
+    expect(textContent(result)).toBe("decoded host text");
+  });
 });
