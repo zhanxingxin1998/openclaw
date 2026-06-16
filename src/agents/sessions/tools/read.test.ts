@@ -9,10 +9,10 @@ import { withEnvAsync } from "../../../test-utils/env.js";
 import { createReadToolDefinition } from "./read.js";
 import { DEFAULT_MAX_BYTES } from "./truncate.js";
 
-const decodeWindowsOutputBufferMock = vi.hoisted(() => vi.fn(() => ""));
+const decodeWindowsTextFileBufferMock = vi.hoisted(() => vi.fn(() => ""));
 
 vi.mock("../../../infra/windows-encoding.js", () => ({
-  decodeWindowsOutputBuffer: decodeWindowsOutputBufferMock,
+  decodeWindowsTextFileBuffer: decodeWindowsTextFileBufferMock,
 }));
 
 const ONE_PIXEL_PNG_BASE64 =
@@ -27,7 +27,7 @@ function textContent(
 
 describe("read tool", () => {
   beforeEach(() => {
-    decodeWindowsOutputBufferMock.mockReset();
+    decodeWindowsTextFileBufferMock.mockReset();
   });
 
   it("reads managed inbound media refs as image files", async () => {
@@ -115,7 +115,7 @@ describe("read tool", () => {
     const tempDir = await fs.mkdtemp(path.join(os.tmpdir(), "openclaw-read-encoding-"));
     const filePath = path.join(tempDir, "legacy.txt");
     const legacyBytes = Buffer.from([0xc4, 0xe3, 0xba, 0xc3]);
-    decodeWindowsOutputBufferMock.mockReturnValueOnce("decoded legacy text");
+    decodeWindowsTextFileBufferMock.mockReturnValueOnce("decoded legacy text");
 
     try {
       await fs.writeFile(filePath, legacyBytes);
@@ -128,7 +128,7 @@ describe("read tool", () => {
         {} as never,
       );
 
-      expect(decodeWindowsOutputBufferMock).toHaveBeenCalledWith({ buffer: legacyBytes });
+      expect(decodeWindowsTextFileBufferMock).toHaveBeenCalledWith({ buffer: legacyBytes });
       expect(textContent(result)).toBe("decoded legacy text");
     } finally {
       await fs.rm(tempDir, { recursive: true, force: true });
@@ -152,7 +152,7 @@ describe("read tool", () => {
       {} as never,
     );
 
-    expect(decodeWindowsOutputBufferMock).not.toHaveBeenCalled();
+    expect(decodeWindowsTextFileBufferMock).not.toHaveBeenCalled();
     expect(textContent(result)).toBe(bytes.toString("utf8"));
   });
 
@@ -174,7 +174,7 @@ describe("read tool", () => {
       {} as never,
     );
 
-    expect(decodeWindowsOutputBufferMock).not.toHaveBeenCalled();
+    expect(decodeWindowsTextFileBufferMock).not.toHaveBeenCalled();
     expect(textContent(result)).toBe("/workspace/legacy.txt:c4e3bac3");
   });
 });

@@ -44,7 +44,7 @@ describe("createOpenClawCodingTools read behavior", () => {
         return { relativePath, containerPath };
       },
     };
-    const decodeSpy = vi.spyOn(windowsEncoding, "decodeWindowsOutputBuffer");
+    const decodeSpy = vi.spyOn(windowsEncoding, "decodeWindowsTextFileBuffer");
 
     try {
       const hostTool = createSandboxedReadTool({ root: tmpDir, bridge: hostBridge });

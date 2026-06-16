@@ -3,6 +3,7 @@ import { describe, expect, it } from "vitest";
 import {
   createWindowsOutputDecoder,
   decodeWindowsOutputBuffer,
+  decodeWindowsTextFileBuffer,
   parseWindowsCodePage,
 } from "./windows-encoding.js";
 
@@ -35,6 +36,18 @@ describe("windows output encoding", () => {
         windowsEncoding: "gbk",
       }),
     ).toBe("测试");
+  });
+
+  it("decodes legacy text files with the Windows system encoding", () => {
+    const raw = Buffer.from([0xc4, 0xe3, 0xba, 0xc3]);
+
+    expect(
+      decodeWindowsTextFileBuffer({
+        buffer: raw,
+        platform: "win32",
+        windowsEncoding: "gbk",
+      }),
+    ).toBe("你好");
   });
 
   it("keeps multibyte Windows codepage characters intact across chunk boundaries", () => {
