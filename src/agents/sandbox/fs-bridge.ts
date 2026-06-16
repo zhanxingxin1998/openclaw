@@ -44,7 +44,6 @@ export function createSandboxFsBridge(params: {
 }
 
 class SandboxFsBridgeImpl implements SandboxFsBridge {
-  readonly textEncoding = "host" as const;
   private readonly sandbox: SandboxFsBridgeContext;
   private readonly mounts: ReturnType<typeof buildSandboxFsMounts>;
   private readonly pathGuard: SandboxFsPathGuard;

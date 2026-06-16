@@ -57,8 +57,8 @@ const COMPACT_RESOURCE_FILE_NAMES = new Set(["AGENTS.md", "AGENTS.MD", "CLAUDE.m
 export interface ReadOperations {
   /** Resolve a user-supplied path for this read backend. */
   resolvePath?: (filePath: string, cwd: string) => string | Promise<string>;
-  /** Decode text with the host's encoding policy. Custom backends default to UTF-8. */
-  textEncoding?: "host";
+  /** Decode text bytes for this backend. Custom backends default to UTF-8. */
+  decodeText?: (params: { buffer: Buffer; absolutePath: string }) => string;
   /** Read file contents as a Buffer */
   readFile: (absolutePath: string) => Promise<Buffer>;
   /** Check if file is readable (throw if not) */
@@ -69,7 +69,7 @@ export interface ReadOperations {
 
 const defaultReadOperations: ReadOperations = {
   resolvePath: resolveLocalReadPath,
-  textEncoding: "host",
+  decodeText: ({ buffer }) => decodeWindowsOutputBuffer({ buffer }),
   readFile: (path) => fsReadFile(path),
   access: (path) => fsAccess(path, constants.R_OK),
   detectImageMimeType: detectSupportedImageMimeTypeFromFile,
@@ -344,9 +344,7 @@ export function createReadToolDefinition(
               // Read text content.
               const buffer = await ops.readFile(absolutePath);
               const textContent =
-                ops.textEncoding === "host"
-                  ? decodeWindowsOutputBuffer({ buffer })
-                  : buffer.toString("utf8");
+                ops.decodeText?.({ buffer, absolutePath }) ?? buffer.toString("utf8");
               const allLines = textContent.split("\n");
               const totalFileLines = allLines.length;
               // Apply offset if specified. Convert from 1-indexed input to 0-indexed array access.
