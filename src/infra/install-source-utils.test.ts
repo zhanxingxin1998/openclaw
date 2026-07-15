@@ -6,6 +6,7 @@ import { createTrackedTempDirs } from "../test-utils/tracked-temp-dirs.js";
 import {
   packNpmSpecToArchive,
   resolveArchiveSourcePath,
+  resolveNpmSpecMetadata,
   withTempDir,
 } from "./install-source-utils.js";
 
@@ -353,6 +354,79 @@ describe("packNpmSpecToArchive", () => {
     expect(result).toEqual({
       ok: false,
       error: "npm pack failed: network timeout",
+    });
+  });
+});
+
+describe("resolveNpmSpecMetadata", () => {
+  it("unwraps single-element npm view --json array output", async () => {
+    runCommandWithTimeoutMock.mockResolvedValue({
+      stdout: JSON.stringify([
+        {
+          name: "openclaw-plugin",
+          version: "1.2.3",
+          "dist.integrity": "sha512-test-integrity",
+          "dist.shasum": "abc123",
+        },
+      ]),
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+
+    const result = await resolveNpmSpecMetadata({ spec: "openclaw-plugin" });
+
+    expect(result).toEqual({
+      ok: true,
+      metadata: {
+        name: "openclaw-plugin",
+        version: "1.2.3",
+        resolvedSpec: "openclaw-plugin@1.2.3",
+        integrity: "sha512-test-integrity",
+        shasum: "abc123",
+      },
+    });
+  });
+
+  it("rejects empty array output as incomplete metadata", async () => {
+    runCommandWithTimeoutMock.mockResolvedValue({
+      stdout: "[]",
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+
+    const result = await resolveNpmSpecMetadata({ spec: "openclaw-plugin" });
+
+    expect(result).toEqual({
+      ok: false,
+      error: "npm view produced incomplete package metadata",
+    });
+  });
+
+  it("handles non-array single-object output (backward compat)", async () => {
+    runCommandWithTimeoutMock.mockResolvedValue({
+      stdout: JSON.stringify({
+        name: "openclaw-plugin",
+        version: "1.2.3",
+      }),
+      stderr: "",
+      code: 0,
+      signal: null,
+      killed: false,
+    });
+
+    const result = await resolveNpmSpecMetadata({ spec: "openclaw-plugin" });
+
+    expect(result).toEqual({
+      ok: true,
+      metadata: {
+        name: "openclaw-plugin",
+        version: "1.2.3",
+        resolvedSpec: "openclaw-plugin@1.2.3",
+      },
     });
   });
 });
