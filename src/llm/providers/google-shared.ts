@@ -111,6 +111,14 @@ export function retainThoughtSignature(
 // Thought signatures must be base64 for Google APIs (TYPE_BYTES).
 const base64SignaturePattern = /^[A-Za-z0-9+/]+={0,2}$/;
 
+function safeErrorMessage(error: unknown): string {
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
 function isValidThoughtSignature(signature: string | undefined): boolean {
   if (!signature) {
     return false;
@@ -471,7 +479,7 @@ export async function runGoogleGenerateContentLifecycle<T extends GoogleApiType>
       }
     }
     output.stopReason = options?.signal?.aborted ? "aborted" : "error";
-    output.errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+    output.errorMessage = error instanceof Error ? error.message : safeErrorMessage(error);
     stream.push({ type: "error", reason: output.stopReason, error: output });
     stream.end();
   }
