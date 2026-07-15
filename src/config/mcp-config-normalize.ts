@@ -69,6 +69,12 @@ export function canonicalizeConfiguredMcpServer(
     next.clientKey = next.client_key;
     delete next.client_key;
   }
+  // `disabled: true` is a common operator shorthand; normalize to canonical `enabled: false`
+  // so downstream MCP lifecycle checks in bundle-mcp-config.ts and bundle-mcp-codex.ts apply.
+  if (next.disabled === true && next.enabled === undefined) {
+    next.enabled = false;
+    delete next.disabled;
+  }
   return next;
 }
 
