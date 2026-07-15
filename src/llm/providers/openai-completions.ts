@@ -94,6 +94,14 @@ function isImageContentBlock(block: { type: string }): block is ImageContent {
 const EMPTY_TOOL_RESULT_TEXT = "(no output)";
 const IMAGE_TOOL_RESULT_TEXT = "(see attached image)";
 
+function safeErrorMessage(error: unknown): string {
+  try {
+    return JSON.stringify(error);
+  } catch {
+    return String(error);
+  }
+}
+
 function sanitizeToolResultText(text: string, fallback: string): string {
   const sanitized = sanitizeSurrogates(text);
   return sanitized.trim().length > 0 ? sanitized : fallback;
@@ -527,7 +535,7 @@ export const streamOpenAICompletions: StreamFunction<
         delete (block as { streamIndex?: number }).streamIndex;
       }
       output.stopReason = options?.signal?.aborted ? "aborted" : "error";
-      output.errorMessage = error instanceof Error ? error.message : JSON.stringify(error);
+      output.errorMessage = error instanceof Error ? error.message : safeErrorMessage(error);
       // Some providers via OpenRouter give additional information in this field.
       const rawMetadata = (error as { error?: { metadata?: { raw?: string } } })?.error?.metadata
         ?.raw;
