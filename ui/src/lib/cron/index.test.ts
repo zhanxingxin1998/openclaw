@@ -1421,7 +1421,10 @@ describe("cron controller", () => {
     // oxlint-disable-next-line unicorn/prefer-structured-clone -- verify the websocket JSON wire shape
     const serializedPayload = JSON.parse(JSON.stringify(requestPayload(updateCall))) as unknown;
     expectRecordFields(
-      requireRecord(requireRecord(serializedPayload, "payload").patch, "patch").failureAlert,
+      requireRecord(
+        requireRecord(requireRecord(serializedPayload, "payload").patch, "patch").failureAlert,
+        "failureAlert",
+      ),
       { to: null, cooldownMs: null, accountId: null },
     );
   });
