@@ -56,7 +56,7 @@ describe("isRetryableAssistantError", () => {
   });
 
   it.each([
-    "OpenAI API error (500): upstream timeout",
+    "OpenAI API error (500): 500 The server had an error while processing your request. Sorry about that!",
     "Azure OpenAI API error (502): bad gateway",
     "Mistral API error (503): service unavailable",
     "OpenAI API error (504): gateway timeout",
@@ -65,10 +65,35 @@ describe("isRetryableAssistantError", () => {
   });
 
   it.each([
-    "OpenAI API error (401): unauthorized",
-    "Request failed after rendering item (500): invalid input",
-  ])("does not retry permanent or unstructured parenthesized statuses: %s", (text) => {
+    ["bad request", "OpenAI API error (400): invalid_request_error"],
+    ["authentication failure", "OpenAI API error (401): Invalid authentication credentials"],
+    [
+      "authorization failure",
+      "Azure OpenAI API error (403): OAuth authentication is currently not allowed for this organization",
+    ],
+    ["model not found", "Mistral API error (404): model not found"],
+    [
+      "quota exhausted",
+      "OpenAI API error (429): insufficient_quota: Your account has insufficient quota balance to run this request.",
+    ],
+    ["content policy", "Provider finish_reason: content_filter"],
+    ["unstructured status", "Request failed after rendering item (500): invalid input"],
+    [
+      "status in user text",
+      'Invalid request: user text contained "OpenAI API error (500): invalid input"',
+    ],
+  ])("does not retry permanent errors (%s): %s", (_label, text) => {
     expect(isRetryableAssistantError(errorMessage(text))).toBe(false);
+  });
+
+  it("retries a provider-wrapped short-window rate limit", () => {
+    expect(
+      isRetryableAssistantError(
+        errorMessage(
+          "OpenAI API error (429): RESOURCE_EXHAUSTED: Quota exceeded for requests per minute; please retry your request",
+        ),
+      ),
+    ).toBe(true);
   });
 
   it.each([

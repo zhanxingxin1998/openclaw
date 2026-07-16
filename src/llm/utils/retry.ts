@@ -16,9 +16,9 @@ const NON_RETRYABLE_PROVIDER_LIMIT_ERROR_PATTERN = buildProviderErrorPattern([
 ]);
 
 const RETRYABLE_HTTP_STATUS_CODES = new Set([429, 500, 502, 503, 504]);
-// Match only the adapter-owned prefix; arbitrary "(500)" substrings must stay terminal.
-const PROVIDER_WRAPPED_HTTP_STATUS_RE =
-  /^(?:[a-z][\w.-]*[ \t]+)+api[ \t]+error[ \t]*\((\d{3})\)[ \t]*:/i;
+// These are the only built-in adapters that own this envelope. Keep the start anchor
+// and prefix allowlist narrow so echoed user text cannot become retry metadata.
+const PROVIDER_WRAPPED_HTTP_STATUS_RE = /^(?:OpenAI|Azure OpenAI|Mistral) API error \((\d{3})\):/;
 const RATE_LIMIT_CONTEXT_PATTERN = buildProviderErrorPattern([
   "rate.?limit",
   "too many requests",
