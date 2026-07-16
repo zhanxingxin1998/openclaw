@@ -2036,6 +2036,28 @@ process.on("SIGINT", shutdown);`,
     expect(testing.getCachedSessionIds()).not.toContain("session-view-lease");
   });
 
+  it("completes deferred retirement when a materialized run releases its lease", async () => {
+    const runtime = await getOrCreateSessionMcpRuntime({
+      sessionId: "session-run-lease",
+      sessionKey: "agent:test:session-run-lease",
+      workspaceDir: "/workspace",
+      cfg: { mcp: { sessionIdleTtlMs: 0 } },
+    });
+    const materialized = await materializeBundleMcpToolsForRun({ runtime });
+
+    await expect(
+      retireSessionMcpRuntime({
+        sessionId: "session-run-lease",
+        reason: "gateway-session-cleanup",
+        preserveActiveLeases: true,
+      }),
+    ).resolves.toBe(true);
+    expect(testing.getCachedSessionIds()).toContain("session-run-lease");
+
+    await materialized.dispose();
+    expect(testing.getCachedSessionIds()).not.toContain("session-run-lease");
+  });
+
   it("cancels deferred retirement when a later run reuses the runtime", async () => {
     const manager = testing.createSessionMcpRuntimeManager({ enableIdleSweepTimer: false });
     const params = {

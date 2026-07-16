@@ -7,6 +7,7 @@ import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { logWarn } from "../logger.js";
 import { getPluginToolMeta, setPluginToolMeta, type PluginToolMcpMeta } from "../plugins/tools.js";
 import { matchesMcpToolFilterPattern } from "./agent-bundle-mcp-filter.js";
+import { completeDeferredSessionMcpRuntimeRetirement } from "./agent-bundle-mcp-manager-api.js";
 import {
   buildSafeToolName,
   normalizeReservedToolNames,
@@ -24,6 +25,16 @@ import type { AgentToolResult } from "./runtime/index.js";
 import type { AnyAgentTool } from "./tools/common.js";
 function isAppOnlyTool(tool: McpCatalogTool): boolean {
   return tool.uiVisibility !== undefined && !tool.uiVisibility.includes("model");
+}
+
+async function releaseRuntimeLease(params: {
+  runtime: SessionMcpRuntime;
+  releaseLease?: () => void;
+}): Promise<void> {
+  params.releaseLease?.();
+  await completeDeferredSessionMcpRuntimeRetirement(params.runtime).catch((error: unknown) => {
+    logWarn(`bundle-mcp: deferred runtime cleanup failed: ${String(error)}`);
+  });
 }
 
 function buildAppToolPolicyProjections(params: {
@@ -403,7 +414,7 @@ export async function materializeBundleMcpToolsForRun(params: {
   try {
     catalog = await params.runtime.getCatalog();
   } catch (error) {
-    releaseLease?.();
+    await releaseRuntimeLease({ runtime: params.runtime, releaseLease });
     throw error;
   }
   const reservedToolNames = params.reservedToolNames
@@ -522,7 +533,9 @@ export async function materializeBundleMcpToolsForRun(params: {
         return;
       }
       disposed = true;
-      releaseLease?.();
+      // Reset/delete can request retirement while this run owns the lease.
+      // Dispose as soon as the final run, view, or request lease has released.
+      await releaseRuntimeLease({ runtime: params.runtime, releaseLease });
       await params.disposeRuntime?.();
     },
   };

@@ -369,20 +369,22 @@ async function ensureSessionRuntimeCleanup(params: {
   }
   params.assertCurrent?.();
   abortEmbeddedAgentRun(params.sessionId);
+  // Mark cleanup before waiting so the timeout path cannot strand MCP children.
+  // Active tool/app leases keep in-flight work alive until their final release.
+  await retireSessionMcpRuntime({
+    sessionId: params.sessionId,
+    reason: "gateway-session-cleanup",
+    preserveActiveLeases: true,
+    onError: (error, sessionId) => {
+      logVerbose(
+        `sessions cleanup: failed to dispose bundle MCP runtime for ${sessionId}: ${String(error)}`,
+      );
+    },
+  });
   const ended = await waitForEmbeddedAgentRunEnd(params.sessionId, 15_000);
   params.assertCurrent?.();
   clearBootstrapSnapshot(params.target.canonicalKey);
   if (ended) {
-    params.assertCurrent?.();
-    await retireSessionMcpRuntime({
-      sessionId: params.sessionId,
-      reason: "gateway-session-cleanup",
-      onError: (error, sessionId) => {
-        logVerbose(
-          `sessions cleanup: failed to dispose bundle MCP runtime for ${sessionId}: ${String(error)}`,
-        );
-      },
-    });
     params.assertCurrent?.();
     await closeTrackedBrowserTabs();
     return undefined;
