@@ -36,6 +36,17 @@ describe("cron protocol validators", () => {
     expect(validateCronAddParams(minimalAddParams)).toBe(true);
   });
 
+  it("accepts failure alert field clears only in update patches", () => {
+    const failureAlert = {
+      to: null,
+      cooldownMs: null,
+      accountId: null,
+    };
+
+    expect(validateCronUpdateParams({ id: "job-1", patch: { failureAlert } })).toBe(true);
+    expect(validateCronAddParams({ ...minimalAddParams, failureAlert })).toBe(false);
+  });
+
   it("rejects schedule integers that SQLite cannot round-trip safely", () => {
     const unsafe = Number.MAX_SAFE_INTEGER + 1;
     expect(

@@ -913,7 +913,10 @@ function normalizePersistedDeliveryChannel(
   return channel;
 }
 
-function buildFailureAlert(form: CronFormState, existingChannel?: string) {
+function buildFailureAlert(
+  form: CronFormState,
+  existing?: { channel?: string; to?: string; cooldownMs?: number; accountId?: string },
+) {
   if (form.failureAlertMode === "disabled") {
     return false as const;
   }
@@ -929,18 +932,23 @@ function buildFailureAlert(form: CronFormState, existingChannel?: string) {
       : undefined;
   const deliveryMode = form.failureAlertDeliveryMode;
   const accountId = form.failureAlertAccountId.trim();
+  const to = form.failureAlertTo.trim();
   const patch: Record<string, unknown> = {
     after: after > 0 ? Math.floor(after) : undefined,
     channel: normalizePersistedDeliveryChannel(form.failureAlertChannel, {
-      preserveLastOnUpdate: Boolean(existingChannel),
+      preserveLastOnUpdate: Boolean(existing?.channel),
     }),
-    to: form.failureAlertTo.trim() || undefined,
-    ...(cooldownMs !== undefined ? { cooldownMs } : {}),
+    to: to || (existing?.to ? null : undefined),
+    ...(cooldownMs !== undefined
+      ? { cooldownMs }
+      : existing?.cooldownMs !== undefined
+        ? { cooldownMs: null }
+        : {}),
   };
   if (deliveryMode) {
     patch.mode = deliveryMode;
   }
-  patch.accountId = accountId || undefined;
+  patch.accountId = accountId || (existing?.accountId ? null : undefined);
   return patch;
 }
 
@@ -1035,7 +1043,7 @@ export async function addCronJob(state: CronState): Promise<CronSaveResult> {
     const failureAlert = buildFailureAlert(
       form,
       editingJob?.failureAlert && typeof editingJob.failureAlert === "object"
-        ? editingJob.failureAlert.channel
+        ? editingJob.failureAlert
         : undefined,
     );
     const agentId = form.clearAgent ? null : form.agentId.trim();
