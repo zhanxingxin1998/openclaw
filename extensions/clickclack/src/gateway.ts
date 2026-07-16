@@ -239,6 +239,9 @@ export async function startClickClackGatewayAccount(
       const socket = client.websocket(workspaceId, afterCursor);
       await new Promise<void>((resolve, reject) => {
         let settled = false;
+        let closing = false;
+        let pendingMessages = 0;
+        let messageQueue = Promise.resolve();
         let removeAbortListener: (() => void) | undefined;
         const finishSocketCycle = (error?: unknown) => {
           if (settled) {
@@ -269,22 +272,39 @@ export async function startClickClackGatewayAccount(
         ctx.abortSignal.addEventListener("abort", abort, { once: true });
         removeAbortListener = () => ctx.abortSignal.removeEventListener("abort", abort);
         socket.on("message", (data) => {
-          void (async () => {
-            const event = parseSocketEvent(data);
-            if (!event) {
-              ctx.log?.warn?.(
-                `[${account.accountId}] skipped malformed ClickClack websocket event`,
-              );
-              return;
-            }
-            afterCursor = event.cursor || afterCursor;
-            await processIncomingEvent(event);
-          })().catch(finishSocketCycle);
+          // Preserve server event order and commit each cursor only after its
+          // handler succeeds, so reconnect backlog can retry a failed event.
+          pendingMessages += 1;
+          messageQueue = messageQueue
+            .then(async () => {
+              const event = parseSocketEvent(data);
+              if (!event) {
+                ctx.log?.warn?.(
+                  `[${account.accountId}] skipped malformed ClickClack websocket event`,
+                );
+                return;
+              }
+              await processIncomingEvent(event);
+              afterCursor = event.cursor || afterCursor;
+            })
+            .finally(() => {
+              pendingMessages -= 1;
+            });
+          void messageQueue.catch(finishSocketCycle);
         });
-        socket.on("close", () => finishSocketCycle());
+        socket.on("close", () => {
+          if (pendingMessages === 0) {
+            finishSocketCycle();
+            return;
+          }
+          void messageQueue.then(() => finishSocketCycle(), finishSocketCycle);
+        });
         socket.on("error", (error) => {
           if (settled || ctx.abortSignal.aborted) {
             finishSocketCycle();
+            return;
+          }
+          if (closing) {
             return;
           }
           ctx.log?.warn?.(
@@ -292,7 +312,7 @@ export async function startClickClackGatewayAccount(
               error instanceof Error ? error.message : String(error)
             }`,
           );
-          finishSocketCycle();
+          closing = true;
           socket.close();
         });
       });

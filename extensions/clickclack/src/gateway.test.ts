@@ -335,6 +335,92 @@ describe("ClickClack gateway", () => {
     expect(runError).toBeUndefined();
   });
 
+  it("processes websocket events in order before reconnecting from their cursor", async () => {
+    const firstSocket = new FakeSocket();
+    const secondSocket = new FakeSocket();
+    mocks.client.websocket.mockReturnValueOnce(firstSocket).mockReturnValueOnce(secondSocket);
+    let finishFirstEvent: (() => void) | undefined;
+    mocks.handleClickClackInbound.mockImplementationOnce(
+      () =>
+        new Promise<void>((resolve) => {
+          finishFirstEvent = resolve;
+        }),
+    );
+    const abort = new AbortController();
+    const ctx = createGatewayContext(abort.signal);
+    const run = startClickClackGatewayAccount(ctx);
+
+    await vi.waitFor(() => expect(mocks.client.websocket).toHaveBeenCalledTimes(1));
+
+    for (const index of [1, 2]) {
+      firstSocket.emit(
+        "message",
+        Buffer.from(
+          JSON.stringify({
+            id: `evt-${index}`,
+            cursor: `cursor-${index}`,
+            type: "message.created",
+            workspace_id: "workspace-1",
+            channel_id: "chan-1",
+            seq: index + 1,
+            created_at: "2026-01-01T00:00:00.000Z",
+            payload: { message_id: "msg-1", author_id: "human-1" },
+          }),
+        ),
+      );
+    }
+    firstSocket.emit("close");
+
+    await vi.waitFor(() => expect(finishFirstEvent).toBeTypeOf("function"));
+    expect(mocks.handleClickClackInbound).toHaveBeenCalledTimes(1);
+    expect(mocks.client.websocket).toHaveBeenCalledTimes(1);
+
+    finishFirstEvent?.();
+    await vi.waitFor(() => expect(mocks.client.websocket).toHaveBeenCalledTimes(2));
+
+    expect(mocks.handleClickClackInbound).toHaveBeenCalledTimes(2);
+    expect(mocks.client.eventPage).toHaveBeenLastCalledWith("workspace-1", {
+      afterCursor: "cursor-2",
+      limit: 500,
+    });
+
+    abort.abort();
+    await run;
+  });
+
+  it("does not process or commit events queued after a failed websocket event", async () => {
+    const socket = new FakeSocket();
+    mocks.client.websocket.mockReturnValue(socket);
+    mocks.handleClickClackInbound.mockRejectedValueOnce(new Error("dispatch failed"));
+    const abort = new AbortController();
+    const ctx = createGatewayContext(abort.signal);
+    const run = startClickClackGatewayAccount(ctx);
+
+    await vi.waitFor(() => expect(mocks.client.websocket).toHaveBeenCalledTimes(1));
+
+    for (const index of [1, 2]) {
+      socket.emit(
+        "message",
+        Buffer.from(
+          JSON.stringify({
+            id: `evt-${index}`,
+            cursor: `cursor-${index}`,
+            type: "message.created",
+            workspace_id: "workspace-1",
+            channel_id: "chan-1",
+            seq: index + 1,
+            created_at: "2026-01-01T00:00:00.000Z",
+            payload: { message_id: "msg-1", author_id: "human-1" },
+          }),
+        ),
+      );
+    }
+
+    await expect(run).rejects.toThrow("dispatch failed");
+    expect(mocks.handleClickClackInbound).toHaveBeenCalledTimes(1);
+    expect(socket.close).toHaveBeenCalledOnce();
+  });
+
   it("drops messages denied by ClickClack sender access before inbound handling", async () => {
     const socket = new FakeSocket();
     mocks.client.websocket.mockReturnValue(socket);
