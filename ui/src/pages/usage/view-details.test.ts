@@ -1,8 +1,12 @@
 // Control UI tests cover usage detail behavior through the rendered panel.
 import { render } from "lit";
-import { describe, expect, it, vi } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import type { TimeSeriesPoint, UsageSessionEntry } from "./types.ts";
 import { renderSessionDetailPanel } from "./view-details.ts";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+});
 
 function point(overrides: Partial<TimeSeriesPoint> = {}): TimeSeriesPoint {
   return {
@@ -99,6 +103,31 @@ function mount(
 }
 
 describe("renderSessionDetailPanel filtered usage", () => {
+  it("formats timeline labels in the selected UTC time zone", () => {
+    vi.spyOn(Date.prototype, "toLocaleTimeString").mockImplementation((_locales, options) =>
+      options?.timeZone === "UTC" ? "utc-time" : "local-time",
+    );
+    vi.spyOn(Date.prototype, "toLocaleString").mockImplementation((_locales, options) =>
+      options?.timeZone === "UTC" ? "utc-date-time" : "local-date-time",
+    );
+
+    const container = mount(
+      [
+        point({ timestamp: Date.parse("2026-05-13T18:00:00.000Z") }),
+        point({ timestamp: Date.parse("2026-05-13T23:59:59.999Z") }),
+      ],
+      null,
+      null,
+      "total",
+      { timeZone: "utc" },
+    );
+
+    expect(
+      [...container.querySelectorAll(".ts-axis-label")].map((label) => label.textContent),
+    ).toEqual(expect.arrayContaining(["utc-time", "utc-time"]));
+    expect(container.querySelector(".ts-bar title")?.textContent).toContain("utc-date-time");
+  });
+
   it("filters detail points by the selected UTC day and keeps the final millisecond", () => {
     const localOffsetMs = 8 * 60 * 60 * 1000;
     const localYear = vi
@@ -135,6 +164,32 @@ describe("renderSessionDetailPanel filtered usage", () => {
       localYear.mockRestore();
       localMonth.mockRestore();
       localDay.mockRestore();
+    }
+  });
+
+  it("ends a local range at the next calendar midnight after a skipped midnight", () => {
+    const previousTimeZone = process.env.TZ;
+    process.env.TZ = "America/Santiago";
+    try {
+      const container = mount(
+        [
+          point({ timestamp: new Date(2026, 8, 6, 1).getTime() }),
+          point({ timestamp: new Date(2026, 8, 6, 12).getTime() }),
+          point({ timestamp: new Date(2026, 8, 7, 0, 30).getTime() }),
+        ],
+        null,
+        null,
+        "total",
+        { startDate: "2026-09-06", endDate: "2026-09-06", timeZone: "local" },
+      );
+
+      expect(container.querySelectorAll(".ts-bar")).toHaveLength(2);
+    } finally {
+      if (previousTimeZone === undefined) {
+        delete process.env.TZ;
+      } else {
+        process.env.TZ = previousTimeZone;
+      }
     }
   });
 

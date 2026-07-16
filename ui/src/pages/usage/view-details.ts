@@ -37,16 +37,12 @@ function normalizeLogTimestamp(ts: number): number {
   return ts < 1e12 ? ts * 1000 : ts;
 }
 
-function dateBoundaryMs(date: string, timeZone: "local" | "utc", nextDay: boolean): number {
-  const value = new Date(`${date}T00:00:00${timeZone === "utc" ? "Z" : ""}`);
-  if (nextDay) {
-    if (timeZone === "utc") {
-      value.setUTCDate(value.getUTCDate() + 1);
-    } else {
-      value.setDate(value.getDate() + 1);
-    }
-  }
-  return value.getTime();
+function dateBoundaryMs(date: string, timeZone: "local" | "utc", dayOffset: 0 | 1): number {
+  const year = Number(date.slice(0, 4));
+  const month = Number(date.slice(5, 7)) - 1;
+  const day = Number(date.slice(8, 10)) + dayOffset;
+  // Build the target date directly; advancing a normalized skipped midnight can retain 01:00.
+  return timeZone === "utc" ? Date.UTC(year, month, day) : new Date(year, month, day).getTime();
 }
 
 function dateKey(timestamp: number, timeZone: "local" | "utc"): string {
@@ -423,8 +419,8 @@ function renderTimeSeriesCompact(
   // Filter and recalculate (same logic as main function)
   let points = timeSeries.points;
   if (startDate || endDate || (selectedDays && selectedDays.length > 0)) {
-    const startTs = startDate ? dateBoundaryMs(startDate, timeZone, false) : 0;
-    const endTs = endDate ? dateBoundaryMs(endDate, timeZone, true) : Infinity;
+    const startTs = startDate ? dateBoundaryMs(startDate, timeZone, 0) : 0;
+    const endTs = endDate ? dateBoundaryMs(endDate, timeZone, 1) : Infinity;
     const selectedDaySet = selectedDays?.length ? new Set(selectedDays) : undefined;
     points = timeSeries.points.filter((p) => {
       if (p.timestamp < startTs || p.timestamp >= endTs) {
@@ -495,6 +491,7 @@ function renderTimeSeriesCompact(
   const chartHeight = height - padding.top - padding.bottom;
   const isCumulative = mode === "cumulative";
   const breakdownByType = mode === "per-turn" && breakdownMode === "by-type";
+  const timeZoneOptions: Intl.DateTimeFormatOptions = timeZone === "utc" ? { timeZone: "UTC" } : {};
 
   const totalTypeTokens = filteredOutput + filteredInput + filteredCacheRead + filteredCacheWrite;
   const barTotals = points.map((p) =>
@@ -606,8 +603,8 @@ function renderTimeSeriesCompact(
           <!-- X axis labels (first and last) -->
           ${points.length > 0
             ? svg`
-            <text x="${padding.left}" y="${padding.top + chartHeight + 10}" text-anchor="start" class="ts-axis-label">${formatTimeMs(expectDefined(points[0], "time series first point").timestamp, { hour: "2-digit", minute: "2-digit" }, "")}</text>
-            <text x="${width - padding.right}" y="${padding.top + chartHeight + 10}" text-anchor="end" class="ts-axis-label">${formatTimeMs(expectDefined(points.at(-1), "time series last point").timestamp, { hour: "2-digit", minute: "2-digit" }, "")}</text>
+            <text x="${padding.left}" y="${padding.top + chartHeight + 10}" text-anchor="start" class="ts-axis-label">${formatTimeMs(expectDefined(points[0], "time series first point").timestamp, { hour: "2-digit", minute: "2-digit", ...timeZoneOptions }, "")}</text>
+            <text x="${width - padding.right}" y="${padding.top + chartHeight + 10}" text-anchor="end" class="ts-axis-label">${formatTimeMs(expectDefined(points.at(-1), "time series last point").timestamp, { hour: "2-digit", minute: "2-digit", ...timeZoneOptions }, "")}</text>
           `
             : nothing}
           <!-- Bars -->
@@ -624,6 +621,7 @@ function renderTimeSeriesCompact(
                   day: "numeric",
                   hour: "2-digit",
                   minute: "2-digit",
+                  ...timeZoneOptions,
                 },
                 "",
               ),
@@ -782,9 +780,13 @@ function renderTimeSeriesCompact(
               ·
               ${formatTimeMs(
                 rangeStartTs,
-                { hour: "2-digit", minute: "2-digit" },
+                { hour: "2-digit", minute: "2-digit", ...timeZoneOptions },
                 "",
-              )}–${formatTimeMs(rangeEndTs, { hour: "2-digit", minute: "2-digit" }, "")}
+              )}–${formatTimeMs(
+                rangeEndTs,
+                { hour: "2-digit", minute: "2-digit", ...timeZoneOptions },
+                "",
+              )}
               ·
               ${formatTokens(
                 filteredOutput + filteredInput + filteredCacheRead + filteredCacheWrite,
