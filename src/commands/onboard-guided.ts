@@ -593,7 +593,7 @@ async function runGuidedOnboardingFlow(
         t("wizard.guided.aiAccessTitle"),
       );
     }
-    const hasActiveRoute = detection?.setupComplete === true;
+    const hasActiveRoute = detection?.setupComplete ?? false;
     const manualResult = await runManualStage({
       detection,
       autoAttemptedKinds,
