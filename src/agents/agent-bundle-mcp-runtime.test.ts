@@ -2169,7 +2169,10 @@ process.on("SIGINT", shutdown);`,
 
     expect(manager.deferRetirement(params.sessionId, { retainAcrossReuse: true })).toBe(true);
     const firstRuntime = await manager.getOrCreate(params);
-    const release = expectDefined(firstRuntime.acquireLease)();
+    const release = expectDefined(
+      firstRuntime.acquireLease,
+      "firstRuntime.acquireLease test invariant",
+    )();
     await expect(manager.completeDeferredRetirement(params.sessionId, firstRuntime)).resolves.toBe(
       false,
     );
