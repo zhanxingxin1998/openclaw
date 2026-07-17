@@ -2158,6 +2158,41 @@ process.on("SIGINT", shutdown);`,
     await manager.disposeAll();
   });
 
+  it("keeps required retirement armed across late runtime creation and reuse", async () => {
+    const manager = testing.createSessionMcpRuntimeManager({ enableIdleSweepTimer: false });
+    const params = {
+      sessionId: "session-required-retirement",
+      sessionKey: "agent:test:session-required-retirement",
+      workspaceDir: "/workspace",
+      cfg: { mcp: { servers: {}, sessionIdleTtlMs: 0 } },
+    };
+
+    expect(manager.deferRetirement(params.sessionId, { retainAcrossReuse: true })).toBe(true);
+    const firstRuntime = await manager.getOrCreate(params);
+    const release = expectDefined(firstRuntime.acquireLease)();
+    await expect(manager.completeDeferredRetirement(params.sessionId, firstRuntime)).resolves.toBe(
+      false,
+    );
+    release();
+    await expect(manager.completeDeferredRetirement(params.sessionId, firstRuntime)).resolves.toBe(
+      true,
+    );
+    expect(manager.listSessionIds()).not.toContain(params.sessionId);
+
+    const lateRuntime = await manager.getOrCreate(params);
+    await expect(manager.completeDeferredRetirement(params.sessionId, lateRuntime)).resolves.toBe(
+      true,
+    );
+    expect(manager.listSessionIds()).not.toContain(params.sessionId);
+
+    await manager.disposeSession(params.sessionId);
+    const reusableRuntime = await manager.getOrCreate(params);
+    await expect(
+      manager.completeDeferredRetirement(params.sessionId, reusableRuntime),
+    ).resolves.toBe(false);
+    await manager.disposeAll();
+  });
+
   it("retires global session runtimes by session key", async () => {
     await getOrCreateSessionMcpRuntime({
       sessionId: "session-retire-key",

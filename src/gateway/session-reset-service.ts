@@ -83,6 +83,8 @@ import {
   resolveSessionStoreKey,
 } from "./session-utils.js";
 
+const mcpRunEndWatchers = new Map<string, Promise<boolean>>();
+
 const ACP_RUNTIME_CLEANUP_TIMEOUT_MS = 15_000;
 
 export function archiveSessionTranscriptsForSessionDetailed(params: {
@@ -367,21 +369,62 @@ async function ensureSessionRuntimeCleanup(params: {
     await closeTrackedBrowserTabs();
     return undefined;
   }
+  const sessionId = params.sessionId;
   params.assertCurrent?.();
-  abortEmbeddedAgentRun(params.sessionId);
+  const retireMcpRuntime = async (retainAcrossReuse: boolean) => {
+    await retireSessionMcpRuntime({
+      sessionId,
+      reason: "gateway-session-cleanup",
+      preserveActiveLeases: true,
+      retainAcrossReuse,
+      onError: (error, sessionId) => {
+        logVerbose(
+          `sessions cleanup: failed to dispose bundle MCP runtime for ${sessionId}: ${String(error)}`,
+        );
+      },
+    });
+  };
+  const ensureMcpRetirementWatcher = () => {
+    if (mcpRunEndWatchers.has(sessionId)) {
+      return;
+    }
+    const runEnd = waitForEmbeddedAgentRunEnd(sessionId, null);
+    mcpRunEndWatchers.set(sessionId, runEnd);
+    void runEnd
+      .then(async (eventuallyEnded) => {
+        if (mcpRunEndWatchers.get(sessionId) === runEnd) {
+          mcpRunEndWatchers.delete(sessionId);
+        }
+        if (eventuallyEnded) {
+          await retireMcpRuntime(false);
+        }
+      })
+      .catch((error: unknown) => {
+        if (mcpRunEndWatchers.get(sessionId) === runEnd) {
+          mcpRunEndWatchers.delete(sessionId);
+        }
+        logVerbose(`sessions cleanup: failed to disarm deferred MCP retirement: ${String(error)}`);
+      });
+  };
+  // Register against the run being stopped before abort or any await allows a
+  // later embedded or reply-backed run to replace it in the active registry.
+  ensureMcpRetirementWatcher();
+  abortEmbeddedAgentRun(sessionId);
   // Mark cleanup before waiting so the timeout path cannot strand MCP children.
   // Active tool/app leases keep in-flight work alive until their final release.
-  await retireSessionMcpRuntime({
-    sessionId: params.sessionId,
-    reason: "gateway-session-cleanup",
-    preserveActiveLeases: true,
-    onError: (error, sessionId) => {
-      logVerbose(
-        `sessions cleanup: failed to dispose bundle MCP runtime for ${sessionId}: ${String(error)}`,
-      );
-    },
-  });
-  const ended = await waitForEmbeddedAgentRunEnd(params.sessionId, 15_000);
+  await retireMcpRuntime(true);
+  const ended = await waitForEmbeddedAgentRunEnd(sessionId, 15_000);
+  params.assertCurrent?.();
+  if (!ended) {
+    // The original run may have ended and been replaced during the first
+    // retirement await. Let its watcher settle, then bind cleanup to whichever
+    // run actually timed out.
+    await Promise.resolve();
+    ensureMcpRetirementWatcher();
+  }
+  // A stopping run can create or reuse its runtime while we wait. Retire again
+  // after a clean stop; otherwise keep the required marker armed for late work.
+  await retireMcpRuntime(!ended);
   params.assertCurrent?.();
   clearBootstrapSnapshot(params.target.canonicalKey);
   if (ended) {

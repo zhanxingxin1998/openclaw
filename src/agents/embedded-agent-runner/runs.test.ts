@@ -888,6 +888,24 @@ describe("embedded-agent runner run registry", () => {
     }
   });
 
+  it("waits without a timer when no run-end timeout is requested", async () => {
+    vi.useFakeTimers();
+    try {
+      const handle = createRunHandle();
+      setActiveEmbeddedRun("session-unbounded", handle);
+      const setTimeoutSpy = vi.spyOn(globalThis, "setTimeout");
+
+      const waitPromise = waitForEmbeddedAgentRunEnd("session-unbounded", null);
+
+      expect(setTimeoutSpy).not.toHaveBeenCalled();
+      clearActiveEmbeddedRun("session-unbounded", handle);
+      await expect(waitPromise).resolves.toBe(true);
+    } finally {
+      await vi.runOnlyPendingTimersAsync();
+      vi.useRealTimers();
+    }
+  });
+
   it("waits for active runs to drain", async () => {
     vi.useFakeTimers();
     try {

@@ -986,7 +986,7 @@ test("sessions.delete returns unavailable when active run does not stop", async 
   embeddedRunMock.activeIds.add("sess-active");
   embeddedRunMock.waitResults.set("sess-active", false);
   const waitCallCountsAtRetirement: number[] = [];
-  bundleMcpRuntimeMocks.retireSessionMcpRuntime.mockImplementationOnce(async () => {
+  bundleMcpRuntimeMocks.retireSessionMcpRuntime.mockImplementation(async () => {
     waitCallCountsAtRetirement.push(embeddedRunMock.waitCalls.length);
     return true;
   });
@@ -1008,9 +1008,11 @@ test("sessions.delete returns unavailable when active run does not stop", async 
     sessionId: "sess-active",
     reason: "gateway-session-cleanup",
     preserveActiveLeases: true,
+    retainAcrossReuse: true,
     onError: expect.any(Function),
   });
-  expect(waitCallCountsAtRetirement).toEqual([0]);
+  expect(bundleMcpRuntimeMocks.retireSessionMcpRuntime).toHaveBeenCalledTimes(2);
+  expect(waitCallCountsAtRetirement).toEqual([0, 1]);
   expect(browserSessionTabMocks.closeTrackedBrowserTabsForSessions).not.toHaveBeenCalled();
 
   const storedEntry = loadSessionEntry({
