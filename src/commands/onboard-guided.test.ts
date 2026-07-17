@@ -803,6 +803,90 @@ describe("runGuidedOnboarding", () => {
     expect(promptAuthChoiceGrouped).toHaveBeenCalledOnce();
   });
 
+  it("keeps a configured route when guarded discovery and replacement are skipped", async () => {
+    readConfigFileSnapshot.mockResolvedValue({
+      exists: true,
+      valid: true,
+      path: "/tmp/openclaw.json",
+      issues: [],
+      config: {
+        agents: {
+          defaults: {
+            workspace: "/tmp/configured-workspace",
+            model: { primary: "openai/gpt-5.6" },
+          },
+        },
+        wizard: {
+          accessMode: "guarded",
+          securityAcknowledgedAt: "2026-01-01T00:00:00.000Z",
+        },
+      },
+    });
+    promptAuthChoiceGrouped.mockResolvedValueOnce("skip");
+    const prompter = createWizardPrompter(undefined, {
+      selectValues: ["guarded", "manual"],
+    });
+    const deps = {
+      ...setupDeps({ prompter }),
+      listManualOptions: vi.fn(async () => ({
+        manualProviders: [{ id: "openai-api-key", label: "OpenAI" }],
+        authOptions: [],
+        workspace: "/tmp/configured-workspace",
+        setupComplete: true,
+      })),
+    };
+
+    await runGuidedOnboarding({ acceptRisk: true }, makeRuntime(), deps);
+
+    expect(deps.applySetup).not.toHaveBeenCalled();
+    expect(deps.launchHatchTui).toHaveBeenCalledWith("/tmp/configured-workspace");
+    const notes = JSON.stringify((prompter.note as ReturnType<typeof vi.fn>).mock.calls);
+    expect(notes).toContain("Keeping the working AI you already have.");
+    expect(notes).toContain("already set up");
+    expect(notes).not.toContain("Add AI later");
+  });
+
+  it("keeps a configured route when guarded setup has no replacement options", async () => {
+    readConfigFileSnapshot.mockResolvedValue({
+      exists: true,
+      valid: true,
+      path: "/tmp/openclaw.json",
+      issues: [],
+      config: {
+        agents: {
+          defaults: {
+            workspace: "/tmp/configured-workspace",
+            model: { primary: "openai/gpt-5.6" },
+          },
+        },
+        wizard: {
+          accessMode: "guarded",
+          securityAcknowledgedAt: "2026-01-01T00:00:00.000Z",
+        },
+      },
+    });
+    const prompter = createWizardPrompter(undefined, {
+      selectValues: ["guarded", "manual"],
+    });
+    const deps = {
+      ...setupDeps({ prompter }),
+      listManualOptions: vi.fn(async () => ({
+        manualProviders: [],
+        authOptions: [],
+        workspace: "/tmp/configured-workspace",
+        setupComplete: true,
+      })),
+    };
+
+    await runGuidedOnboarding({ acceptRisk: true }, makeRuntime(), deps);
+
+    expect(promptAuthChoiceGrouped).not.toHaveBeenCalled();
+    expect(deps.launchHatchTui).toHaveBeenCalledWith("/tmp/configured-workspace");
+    const notes = JSON.stringify((prompter.note as ReturnType<typeof vi.fn>).mock.calls);
+    expect(notes).toContain("Keeping the working AI you already have.");
+    expect(notes).not.toContain("No AI setup options are available");
+  });
+
   it("scans in guarded mode only after the look-around consent", async () => {
     const prompter = createWizardPrompter(undefined, { selectValues: ["guarded", "look"] });
     const deps = setupDeps({ prompter });

@@ -178,6 +178,13 @@ async function runManualStage(params: {
     ),
   }));
   if (detectedOptions.length === 0 && allowedChoices.size === 0) {
+    if (params.hasActiveRoute) {
+      await params.prompter.note(
+        t("wizard.guided.keepingCurrent"),
+        t("wizard.guided.aiAccessTitle"),
+      );
+      return null;
+    }
     await params.prompter.note(
       t("wizard.guided.noInferenceOptions"),
       t("wizard.guided.aiAccessTitle"),
@@ -586,6 +593,7 @@ async function runGuidedOnboardingFlow(
         t("wizard.guided.aiAccessTitle"),
       );
     }
+    const hasActiveRoute = detection?.setupComplete === true;
     const manualResult = await runManualStage({
       detection,
       autoAttemptedKinds,
@@ -594,14 +602,21 @@ async function runGuidedOnboardingFlow(
       runtime,
       prompter,
       activate,
+      hasActiveRoute,
     });
     if (!manualResult) {
-      return null;
+      if (!hasActiveRoute) {
+        return null;
+      }
+      resultLines = [];
+    } else {
+      resultLines = manualResult;
     }
-    resultLines = manualResult;
   }
 
-  await prompter.note(resultLines.join("\n"), t("wizard.guided.appliedTitle"));
+  if (resultLines.length > 0) {
+    await prompter.note(resultLines.join("\n"), t("wizard.guided.appliedTitle"));
+  }
   const persistedSnapshot = await readConfigFileSnapshot();
   const persistedConfig = persistedSnapshot.valid
     ? (persistedSnapshot.sourceConfig ?? persistedSnapshot.config)
