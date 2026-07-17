@@ -626,6 +626,7 @@ class OpenClawBrowserPanel extends OpenClawLitElement {
     this.drawingStroke = null;
     this.inspected = null;
     this.inspectPointer = null;
+    this.suppressStageClick = false;
   }
 
   private setMode(mode: BrowserPanelMode): void {

@@ -56,6 +56,22 @@ describe("normalizeBrowserUrlDraft", () => {
     expect((panel as unknown as { open: boolean }).open).toBe(true);
   });
 
+  it("resets suppressStageClick when exiting capture modes", async () => {
+    const panel = document.createElement("openclaw-browser-panel") as unknown as HTMLElement & {
+      available: boolean;
+      suppressStageClick: boolean;
+      exitCaptureModes: () => void;
+    };
+    panel.available = true;
+    document.body.append(panel);
+    await (panel as unknown as { updateComplete: Promise<unknown> }).updateComplete;
+
+    panel.suppressStageClick = true;
+    panel.exitCaptureModes();
+
+    expect(panel.suppressStageClick).toBe(false);
+  });
+
   it("keeps an already closed panel closed for an explicit close request", () => {
     const panel = document.createElement("openclaw-browser-panel") as unknown as HTMLElement & {
       available: boolean;
