@@ -1,6 +1,10 @@
 // Tests poll input contracts and option defaults.
 import { describe, expect, it } from "vitest";
-import { normalizePollDurationHours, normalizePollInput } from "./polls.js";
+import {
+  normalizePollDurationHours,
+  normalizePollInput,
+  resolvePollMaxSelections,
+} from "./polls.js";
 
 describe("polls", () => {
   it("normalizes question/options and validates maxSelections", () => {
@@ -44,5 +48,25 @@ describe("polls", () => {
         durationHours: 1,
       }),
     ).toThrow(/mutually exclusive/);
+  });
+});
+
+describe("resolvePollMaxSelections", () => {
+  it("returns 1 when multiselect is disabled", () => {
+    expect(resolvePollMaxSelections(5, false)).toBe(1);
+  });
+
+  it("returns 1 when multiselect is undefined", () => {
+    expect(resolvePollMaxSelections(5, undefined)).toBe(1);
+  });
+
+  it("returns optionCount when multiselect enabled and options >= 2", () => {
+    expect(resolvePollMaxSelections(2, true)).toBe(2);
+    expect(resolvePollMaxSelections(5, true)).toBe(5);
+  });
+
+  it("caps maxSelections at optionCount when fewer than 2 options", () => {
+    expect(resolvePollMaxSelections(0, true)).toBe(0);
+    expect(resolvePollMaxSelections(1, true)).toBe(1);
   });
 });

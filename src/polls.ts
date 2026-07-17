@@ -31,7 +31,7 @@ export function resolvePollMaxSelections(
   optionCount: number,
   allowMultiselect: boolean | undefined,
 ): number {
-  return allowMultiselect ? Math.max(2, optionCount) : 1;
+  return allowMultiselect ? Math.min(optionCount, Math.max(2, optionCount)) : 1;
 }
 
 export function normalizePollInput(
