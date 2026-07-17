@@ -302,15 +302,15 @@ export function createSessionMcpRuntimeManager(
     async disposeSession(sessionId) {
       await lifecycle.disposeManagedSession(sessionId);
     },
-    deferRetirement(sessionId, opts) {
-      if (opts?.retainAcrossReuse === true) {
+    deferRetirement(sessionId, retirementOpts) {
+      if (retirementOpts?.retainAcrossReuse === true) {
         store.requiredRetirementSessionIds.add(sessionId);
       } else {
         store.requiredRetirementSessionIds.delete(sessionId);
       }
       if (
         lifecycle.runtimeKeysForSessionId(sessionId).length === 0 &&
-        opts?.retainAcrossReuse !== true
+        retirementOpts?.retainAcrossReuse !== true
       ) {
         return false;
       }

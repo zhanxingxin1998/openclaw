@@ -377,9 +377,9 @@ async function ensureSessionRuntimeCleanup(params: {
       reason: "gateway-session-cleanup",
       preserveActiveLeases: true,
       retainAcrossReuse,
-      onError: (error, sessionId) => {
+      onError: (error, retiredSessionId) => {
         logVerbose(
-          `sessions cleanup: failed to dispose bundle MCP runtime for ${sessionId}: ${String(error)}`,
+          `sessions cleanup: failed to dispose bundle MCP runtime for ${retiredSessionId}: ${String(error)}`,
         );
       },
     });
