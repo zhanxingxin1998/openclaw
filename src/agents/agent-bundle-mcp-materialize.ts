@@ -7,7 +7,6 @@ import type { OpenClawConfig } from "../config/types.openclaw.js";
 import { logWarn } from "../logger.js";
 import { getPluginToolMeta, setPluginToolMeta, type PluginToolMcpMeta } from "../plugins/tools.js";
 import { matchesMcpToolFilterPattern } from "./agent-bundle-mcp-filter.js";
-import { completeDeferredSessionMcpRuntimeRetirement } from "./agent-bundle-mcp-manager-api.js";
 import {
   buildSafeToolName,
   normalizeReservedToolNames,
@@ -32,6 +31,10 @@ async function releaseRuntimeLease(params: {
   releaseLease?: () => void;
 }): Promise<void> {
   params.releaseLease?.();
+  // Lease retirement is a lifecycle-only edge. Keep the manager graph out of
+  // read-only CLI startup paths that load tool materialization metadata.
+  const { completeDeferredSessionMcpRuntimeRetirement } =
+    await import("./agent-bundle-mcp-manager-api.js");
   await completeDeferredSessionMcpRuntimeRetirement(params.runtime).catch((error: unknown) => {
     logWarn(`bundle-mcp: deferred runtime cleanup failed: ${String(error)}`);
   });
