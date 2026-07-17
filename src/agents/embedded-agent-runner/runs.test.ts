@@ -906,6 +906,25 @@ describe("embedded-agent runner run registry", () => {
     }
   });
 
+  it("waits for a reply-backed run without an embedded handle", async () => {
+    const operation = createReplyOperation({
+      sessionKey: "agent:main:reply-wait",
+      sessionId: "session-reply-wait",
+      resetTriggered: false,
+    });
+
+    const waitPromise = waitForEmbeddedAgentRunEnd("session-reply-wait", null);
+    let settled = false;
+    void waitPromise.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    operation.complete();
+    await expect(waitPromise).resolves.toBe(true);
+  });
+
   it("waits for a replacement run under the same session id", async () => {
     const firstHandle = createRunHandle();
     const replacementHandle = createRunHandle();
