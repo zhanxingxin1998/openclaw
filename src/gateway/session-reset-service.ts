@@ -9,7 +9,6 @@ import {
   upsertAcpSessionMeta,
   writeAcpSessionMetaForMigration,
 } from "../acp/runtime/session-meta.js";
-import { retireSessionMcpRuntime } from "../agents/agent-bundle-mcp-tools.js";
 import {
   listAgentIds,
   resolveAgentWorkspaceDir,
@@ -338,7 +337,10 @@ async function ensureSessionRuntimeCleanup(params: {
 }) {
   // Session lifecycle mutation owns this heavy runtime edge; read-only gateway
   // commands such as status must not load the embedded-agent barrel.
-  const embeddedAgent = await import("../agents/embedded-agent.js");
+  const [embeddedAgent, mcpTools] = await Promise.all([
+    import("../agents/embedded-agent.js"),
+    import("../agents/agent-bundle-mcp-tools.js"),
+  ]);
   params.assertCurrent?.();
   const closeTrackedBrowserTabs = async () => {
     params.assertCurrent?.();
@@ -375,7 +377,7 @@ async function ensureSessionRuntimeCleanup(params: {
   const sessionId = params.sessionId;
   params.assertCurrent?.();
   const retireMcpRuntime = async (retainAcrossReuse: boolean) => {
-    await retireSessionMcpRuntime({
+    await mcpTools.retireSessionMcpRuntime({
       sessionId,
       reason: "gateway-session-cleanup",
       preserveActiveLeases: true,
