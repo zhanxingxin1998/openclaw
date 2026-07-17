@@ -906,6 +906,27 @@ describe("embedded-agent runner run registry", () => {
     }
   });
 
+  it("waits for a replacement run under the same session id", async () => {
+    const firstHandle = createRunHandle();
+    const replacementHandle = createRunHandle();
+    setActiveEmbeddedRun("session-replaced", firstHandle);
+
+    const waitPromise = waitForEmbeddedAgentRunEnd("session-replaced", null);
+    clearActiveEmbeddedRun("session-replaced", firstHandle);
+    setActiveEmbeddedRun("session-replaced", replacementHandle);
+    await Promise.resolve();
+
+    let settled = false;
+    void waitPromise.then(() => {
+      settled = true;
+    });
+    await Promise.resolve();
+    expect(settled).toBe(false);
+
+    clearActiveEmbeddedRun("session-replaced", replacementHandle);
+    await expect(waitPromise).resolves.toBe(true);
+  });
+
   it("waits for active runs to drain", async () => {
     vi.useFakeTimers();
     try {

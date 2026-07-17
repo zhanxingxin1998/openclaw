@@ -252,30 +252,6 @@ test("sessions.reset watches reply-backed MCP retirement after an active-run tim
   });
 });
 
-test("sessions.reset refreshes MCP retirement when the original run ends before timeout", async () => {
-  await seedActiveMainSession();
-  embeddedRunMock.waitResults.set("sess-main", false);
-  embeddedRunMock.resolveEndBeforeTimeoutIds.add("sess-main");
-
-  const reset = await resetMainSession();
-
-  expect(reset.ok).toBe(false);
-  expect(embeddedRunMock.endWaitCalls).toEqual(["sess-main", "sess-main"]);
-  expect(bundleMcpRuntimeMocks.retireSessionMcpRuntime).toHaveBeenCalledTimes(3);
-
-  embeddedRunMock.endWaiters.get("sess-main")?.(true);
-  await vi.waitFor(() => {
-    expect(bundleMcpRuntimeMocks.retireSessionMcpRuntime).toHaveBeenCalledTimes(4);
-  });
-  expect(bundleMcpRuntimeMocks.retireSessionMcpRuntime).toHaveBeenLastCalledWith({
-    sessionId: "sess-main",
-    reason: "gateway-session-cleanup",
-    preserveActiveLeases: true,
-    retainAcrossReuse: false,
-    onError: expect.any(Function),
-  });
-});
-
 test("sessions.reset forwards the retired generation to registered agent harnesses", async () => {
   const registeredHarnesses = listRegisteredAgentHarnesses();
   const reset = vi.fn(async () => undefined);

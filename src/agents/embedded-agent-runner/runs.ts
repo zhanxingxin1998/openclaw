@@ -714,13 +714,10 @@ export async function waitForActiveEmbeddedRuns(
   }
 }
 
-export function waitForEmbeddedAgentRunEnd(
+function waitForCurrentEmbeddedAgentRunEnd(
   sessionId: string,
-  timeoutMs: number | null = 15_000,
+  timeoutMs: number | null,
 ): Promise<boolean> {
-  if (!sessionId) {
-    return Promise.resolve(true);
-  }
   if (!ACTIVE_EMBEDDED_RUNS.has(sessionId)) {
     return waitForReplyRunEndBySessionId(sessionId, timeoutMs);
   }
@@ -757,6 +754,26 @@ export function waitForEmbeddedAgentRunEnd(
       resolve(true);
     }
   });
+}
+
+export async function waitForEmbeddedAgentRunEnd(
+  sessionId: string,
+  timeoutMs: number | null = 15_000,
+): Promise<boolean> {
+  if (!sessionId) {
+    return true;
+  }
+  const deadline = timeoutMs === null ? undefined : Date.now() + timeoutMs;
+  while (isEmbeddedAgentRunActive(sessionId)) {
+    const remainingMs = deadline === undefined ? null : deadline - Date.now();
+    if (remainingMs !== null && remainingMs <= 0) {
+      return false;
+    }
+    if (!(await waitForCurrentEmbeddedAgentRunEnd(sessionId, remainingMs))) {
+      return false;
+    }
+  }
+  return true;
 }
 
 export type AbortAndDrainEmbeddedAgentRunResult = {

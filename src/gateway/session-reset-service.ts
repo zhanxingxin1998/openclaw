@@ -415,13 +415,6 @@ async function ensureSessionRuntimeCleanup(params: {
   await retireMcpRuntime(true);
   const ended = await waitForEmbeddedAgentRunEnd(sessionId, 15_000);
   params.assertCurrent?.();
-  if (!ended) {
-    // The original run may have ended and been replaced during the first
-    // retirement await. Let its watcher settle, then bind cleanup to whichever
-    // run actually timed out.
-    await Promise.resolve();
-    ensureMcpRetirementWatcher();
-  }
   // A stopping run can create or reuse its runtime while we wait. Retire again
   // after a clean stop; otherwise keep the required marker armed for late work.
   await retireMcpRuntime(!ended);
