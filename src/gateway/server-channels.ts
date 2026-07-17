@@ -732,6 +732,12 @@ export function createChannelManager(opts: ChannelManagerOptions): ChannelManage
                   restartPending: false,
                   reconnectAttempts: 0,
                 });
+                if (store.tasks.get(id) === trackedPromise) {
+                  store.tasks.delete(id);
+                }
+                if (store.aborts.get(id) === abort) {
+                  store.aborts.delete(id);
+                }
                 log.info?.(`[${id}] auto-restart skipped, terminal disconnect`);
                 return;
               }
