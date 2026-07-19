@@ -889,6 +889,9 @@ describe("Discord Activity shell assets", () => {
     expect(scriptBody).toContain("instance_id: sdk.instanceId");
     expect(scriptBody).not.toContain("channel_id: sdk.channelId");
     expect(scriptBody).toContain('frame.setAttribute("sandbox", "allow-scripts")');
+    expect(scriptBody).toContain("MAX_ACTIVITY_RESPONSE_BYTES");
+    expect(scriptBody).toContain('response.headers.get("content-length")');
+    expect(scriptBody).toContain("response too large");
     const vendor = await fetch(`${base}/discord/activity/vendor/embedded-app-sdk.mjs`);
     expect(vendor.status).toBe(200);
     expect(await vendor.text()).toContain("DiscordSDK");

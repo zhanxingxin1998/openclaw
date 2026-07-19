@@ -40,7 +40,17 @@ function proxiedDocUrl(value) {
   }
   return url.pathname + url.search;
 }
+const MAX_ACTIVITY_RESPONSE_BYTES = 8 * 1024 * 1024;
 async function readJson(response) {
+  const contentLength = response.headers.get("content-length");
+  if (contentLength !== null) {
+    const length = parseInt(contentLength, 10);
+    if (!Number.isNaN(length) && length > MAX_ACTIVITY_RESPONSE_BYTES) {
+      const error = new Error("response too large");
+      error.status = response.status;
+      throw error;
+    }
+  }
   const body = await response.json().catch(() => ({}));
   if (!response.ok) {
     const error = new Error(typeof body.error === "string" ? body.error : "request failed");
