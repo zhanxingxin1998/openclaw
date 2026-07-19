@@ -1136,14 +1136,14 @@ describe("cron store", () => {
     await fs.writeFile(store.storePath, JSON.stringify(payload, null, 2), "utf-8");
     await fs.writeFile(statePath, JSON.stringify({ version: 1, jobs: {} }), "utf-8");
 
-    const origReadFile = fs.readFile.bind(fs);
-    const spy = vi.spyOn(fs, "readFile").mockImplementation(async (filePath, options) => {
+    const origLstat = fs.lstat.bind(fs);
+    const spy = vi.spyOn(fs, "lstat").mockImplementation(async (filePath, options) => {
       if (filePath === statePath) {
         const err = new Error("permission denied") as NodeJS.ErrnoException;
         err.code = "EACCES";
         throw err;
       }
-      return origReadFile(filePath, options as never) as never;
+      return origLstat(filePath, options);
     });
 
     try {
@@ -1153,6 +1153,24 @@ describe("cron store", () => {
     } finally {
       spy.mockRestore();
     }
+  });
+
+  it("rejects oversized state sidecar files during doctor migration", async () => {
+    const store = await makeStorePath();
+    const payload = makeStore("job-1", true);
+    const statePath = store.storePath.replace(/\.json$/, "-state.json");
+
+    await fs.mkdir(path.dirname(store.storePath), { recursive: true });
+    await fs.writeFile(store.storePath, JSON.stringify(payload, null, 2), "utf-8");
+    // Create a sparse file larger than MAX_CRON_STATE_FILE_BYTES (16 MB) so
+    // readRegularFile rejects it on the pre-open stat check without reading.
+    const handle = await fs.open(statePath, "w");
+    await handle.truncate(17 * 1024 * 1024);
+    await handle.close();
+
+    await expect(loadLegacyCronStoreForMigration(store.storePath)).rejects.toThrow(
+      /Failed to read cron state/,
+    );
   });
 
   it("sanitizes invalid updatedAtMs values from the state sidecar during doctor migration", async () => {

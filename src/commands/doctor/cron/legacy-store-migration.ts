@@ -15,7 +15,10 @@ import type {
   QuarantinedCronConfigJob,
 } from "../../../cron/store.js";
 import type { CronStoreFile } from "../../../cron/types.js";
+import { readRegularFile } from "../../../infra/regular-file.js";
 import { parseJsonWithJson5Fallback } from "../../../utils/parse-json-compat.js";
+
+const MAX_CRON_STATE_FILE_BYTES = 16 * 1024 * 1024;
 
 const LEGACY_CRON_ARCHIVE_SUFFIX = ".migrated";
 const legacyCronMigrationIds = new WeakMap<Record<string, unknown>, string>();
@@ -118,9 +121,8 @@ async function syncArchiveDirectory(dirPath: string): Promise<void> {
 }
 
 async function sha256File(filePath: string): Promise<string> {
-  return createHash("sha256")
-    .update(await fs.readFile(filePath))
-    .digest("hex");
+  const { buffer } = await readRegularFile({ filePath, maxBytes: MAX_CRON_STATE_FILE_BYTES });
+  return createHash("sha256").update(buffer).digest("hex");
 }
 
 /** Refuse to persist a migration plan built from legacy files that changed after loading. */
@@ -440,7 +442,11 @@ async function loadStateFile(statePath: string): Promise<{
 }> {
   let raw: string;
   try {
-    raw = await fs.readFile(statePath, "utf-8");
+    const { buffer } = await readRegularFile({
+      filePath: statePath,
+      maxBytes: MAX_CRON_STATE_FILE_BYTES,
+    });
+    raw = buffer.toString("utf-8");
   } catch (err) {
     if ((err as { code?: unknown })?.code === "ENOENT") {
       return { state: null };
