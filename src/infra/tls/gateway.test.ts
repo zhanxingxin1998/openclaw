@@ -192,4 +192,48 @@ describe("loadGatewayTlsRuntime", () => {
     expect(result.certPath).not.toContain("gateway-cert.pem");
     expect(result.keyPath).not.toContain("gateway-key.pem");
   });
+
+  it("reports load failure when cert file exceeds the size limit", async () => {
+    const dir = await createTempDir();
+    const certPath = path.join(dir, "gateway-cert.pem");
+    const keyPath = path.join(dir, "gateway-key.pem");
+    // Create a cert file larger than MAX_TLS_CERT_FILE_BYTES (64 KB).
+    await writeFile(certPath, Buffer.alloc(128 * 1024, "#"), "utf8");
+    await writeFile(keyPath, KEY_PEM, "utf8");
+
+    const result = await loadGatewayTlsRuntime({
+      enabled: true,
+      certPath,
+      keyPath,
+      autoGenerate: false,
+    });
+
+    expect(result.enabled).toBe(false);
+    expect(result.required).toBe(true);
+    expect(result.certPath).toBe(certPath);
+    expect(result.keyPath).toBe(keyPath);
+    expect(result.error).toContain("gateway tls: failed to load cert");
+  });
+
+  it("reports load failure when key file exceeds the size limit", async () => {
+    const dir = await createTempDir();
+    const certPath = path.join(dir, "gateway-cert.pem");
+    const keyPath = path.join(dir, "gateway-key.pem");
+    await writeFile(certPath, CERT_PEM, "utf8");
+    // Create a key file larger than MAX_TLS_CERT_FILE_BYTES (64 KB).
+    await writeFile(keyPath, Buffer.alloc(128 * 1024, "#"), "utf8");
+
+    const result = await loadGatewayTlsRuntime({
+      enabled: true,
+      certPath,
+      keyPath,
+      autoGenerate: false,
+    });
+
+    expect(result.enabled).toBe(false);
+    expect(result.required).toBe(true);
+    expect(result.certPath).toBe(certPath);
+    expect(result.keyPath).toBe(keyPath);
+    expect(result.error).toContain("gateway tls: failed to load cert");
+  });
 });
