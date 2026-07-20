@@ -2,12 +2,12 @@
  * Model registry - manages configured/provider-owned models and API key resolution.
  */
 
-import { existsSync } from "node:fs";
+import { closeSync, existsSync, openSync } from "node:fs";
 import { dirname, join } from "node:path";
 import { type Static, Type } from "typebox";
 import { Compile } from "typebox/compile";
 import type { TLocalizedValidationError } from "typebox/error";
-import { readRegularFileSync } from "../../infra/regular-file.js";
+import { readFileDescriptorBoundedSync } from "../../infra/boundary-file-read.js";
 import type {
   AnthropicMessagesCompat,
   Api,
@@ -490,10 +490,13 @@ export class ModelRegistry {
     }
 
     try {
-      const content = readRegularFileSync({
-        filePath: modelsJsonPath,
-        maxBytes: MAX_MODELS_CATALOG_BYTES,
-      }).buffer.toString("utf-8");
+      const fd = openSync(modelsJsonPath, "r");
+      let content: string;
+      try {
+        content = readFileDescriptorBoundedSync(fd, MAX_MODELS_CATALOG_BYTES).toString("utf-8");
+      } finally {
+        closeSync(fd);
+      }
       const parsed = JSON.parse(stripJsonComments(content)) as unknown;
       if (options.requireGeneratedCatalog === true && !isGeneratedPluginModelCatalog(parsed)) {
         return emptyCustomModelsResult();

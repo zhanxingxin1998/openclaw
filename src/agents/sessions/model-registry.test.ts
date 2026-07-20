@@ -1,6 +1,6 @@
 // Model registry tests cover models.json auth modes and plugin-owned model
 // catalog shards.
-import { mkdirSync, mkdtempSync, rmSync, writeFileSync } from "node:fs";
+import { mkdirSync, mkdtempSync, rmSync, symlinkSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
 import { dirname, join } from "node:path";
 import { getApiProvider } from "@openclaw/ai/internal/runtime";
@@ -671,6 +671,17 @@ describe("ModelRegistry models.json auth", () => {
 
     expect(registry.getError()).toBeDefined();
     expect(registry.getError()).toContain("exceeds");
+    expect(registry.getAvailable()).toHaveLength(0);
+  });
+
+  it.skipIf(process.platform === "win32")("keeps symlinked models.json catalogs working", () => {
+    const target = writeModelsJson({ providers: {} });
+    const file = join(dirname(target), "models-link.json");
+    symlinkSync(target, file);
+
+    const registry = ModelRegistry.create(AuthStorage.inMemory(), file);
+
+    expect(registry.getError()).toBeUndefined();
     expect(registry.getAvailable()).toHaveLength(0);
   });
 });
