@@ -237,14 +237,12 @@ describe("synology-chat account resolution", () => {
   });
 
   it("ignores blank env vars and falls back to defaults", () => {
-    process.env.SYNOLOGY_CHAT_INCOMING_URL = "";
+    process.env.SYNOLOGY_CHAT_INCOMING_URL = " \t ";
     process.env.SYNOLOGY_NAS_HOST = "   ";
 
     const cfg = { channels: { "synology-chat": {} } };
     const account = resolveAccount(cfg);
-    // empty string env var → falls back to ""
     expect(account.incomingUrl).toBe("");
-    // whitespace-only env var → falls back to "localhost"
     expect(account.nasHost).toBe("localhost");
   });
 
