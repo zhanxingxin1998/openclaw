@@ -1,7 +1,7 @@
 // Covers gateway TLS loading, fingerprint reporting, generated certificate
 // paths, and error handling for missing or invalid material.
 import { X509Certificate } from "node:crypto";
-import { writeFile } from "node:fs/promises";
+import { symlink, writeFile } from "node:fs/promises";
 import path from "node:path";
 import { afterEach, describe, expect, it } from "vitest";
 import { createTrackedTempDirs } from "../../test-utils/tracked-temp-dirs.js";
@@ -108,6 +108,29 @@ describe("loadGatewayTlsRuntime", () => {
     expect(result.tlsOptions?.ca).toBe(CERT_PEM);
     expect(result.tlsOptions?.minVersion).toBe("TLSv1.3");
     expect(result.error).toBeUndefined();
+  });
+
+  it.skipIf(process.platform === "win32")("loads symlinked certificate files", async () => {
+    const dir = await createTempDir();
+    const certTarget = path.join(dir, "gateway-cert-target.pem");
+    const keyTarget = path.join(dir, "gateway-key-target.pem");
+    const certPath = path.join(dir, "gateway-cert.pem");
+    const keyPath = path.join(dir, "gateway-key.pem");
+    await writeFile(certTarget, CERT_PEM, "utf8");
+    await writeFile(keyTarget, KEY_PEM, "utf8");
+    await symlink(certTarget, certPath);
+    await symlink(keyTarget, keyPath);
+
+    const result = await loadGatewayTlsRuntime({
+      enabled: true,
+      certPath,
+      keyPath,
+      autoGenerate: false,
+    });
+
+    expect(result.enabled).toBe(true);
+    expect(result.tlsOptions?.cert).toBe(CERT_PEM);
+    expect(result.tlsOptions?.key).toBe(KEY_PEM);
   });
 
   it("fails closed when cert/key are missing and auto generation is disabled", async () => {

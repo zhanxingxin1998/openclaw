@@ -7,15 +7,22 @@ import tls from "node:tls";
 import type { GatewayTlsConfig } from "../../config/types.gateway.js";
 import { runExec } from "../../process/exec.js";
 import { CONFIG_DIR, ensureDir, resolveUserPath, shortenHomeInString } from "../../utils.js";
+import { readFileDescriptorBounded } from "../boundary-file-read.js";
 import { pathExists } from "../fs-safe.js";
-import { readRegularFile } from "../regular-file.js";
 import { resolveSystemBin } from "../resolve-system-bin.js";
 import { normalizeFingerprint } from "./fingerprint.js";
 
-/** Max byte size for TLS certificate, key, and CA files. Real cert/key files
- *  are typically under 8 KB; 64 KB is generous enough for large chain files
- *  while still protecting against misconfigured paths pointing at huge files. */
+// Keep enough room for certificate chains while bounding misconfigured paths.
 const MAX_TLS_CERT_FILE_BYTES = 64 * 1024;
+
+async function readTlsFile(filePath: string): Promise<string> {
+  const file = await fs.open(filePath, "r");
+  try {
+    return (await readFileDescriptorBounded(file.fd, MAX_TLS_CERT_FILE_BYTES)).toString("utf8");
+  } finally {
+    await file.close();
+  }
+}
 
 // Gateway TLS runtime carries loaded cert material plus the normalized SHA-256
 // fingerprint advertised to clients.
@@ -131,17 +138,9 @@ export async function loadGatewayTlsRuntime(
   }
 
   try {
-    const cert = (
-      await readRegularFile({ filePath: certPath, maxBytes: MAX_TLS_CERT_FILE_BYTES })
-    ).buffer.toString("utf8");
-    const key = (
-      await readRegularFile({ filePath: keyPath, maxBytes: MAX_TLS_CERT_FILE_BYTES })
-    ).buffer.toString("utf8");
-    const ca = caPath
-      ? (
-          await readRegularFile({ filePath: caPath, maxBytes: MAX_TLS_CERT_FILE_BYTES })
-        ).buffer.toString("utf8")
-      : undefined;
+    const cert = await readTlsFile(certPath);
+    const key = await readTlsFile(keyPath);
+    const ca = caPath ? await readTlsFile(caPath) : undefined;
     const x509 = new X509Certificate(cert);
     const fingerprintSha256 = normalizeFingerprint(x509.fingerprint256 ?? "");
 
